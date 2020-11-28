@@ -1,6 +1,9 @@
 # set timer
 START=$SECONDS
 
+# build simulator
+./build_champsim.sh bimodal no no no no $1 1
+
 # remove old results
 rm -rf results_10M
 
@@ -10,7 +13,7 @@ pids=()
 for trace in traces/*
 do
     echo Running $trace
-    ./run_champsim.sh bimodal-no-no-no-no-lru-1core 1 10 $(basename $trace) &
+    ./run_champsim.sh bimodal-no-no-no-no-$1-1core 1 10 $(basename $trace) &
     pids[$n]=$!
     let n++
 done

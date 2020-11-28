@@ -22,8 +22,15 @@ int main(int argc, char **argv) {
 
 	int access, hit;
 	scanf("%*s%*s%*s%d%*s%d", &access, &hit);
+
 	mark(argv[1]);
-	printf("%-15s%7d %7d  %5.2lf%%\n", argv[1], access, hit, (double)hit / access * 100);
+
+	FILE *out = stdout;
+	if (argc > 2) {
+		out = fopen(argv[2], "w");
+	}
+
+	fprintf(out, "%-15s%7d %7d  %5.2lf%%\n", argv[1], access, hit, (double)hit / access * 100);
 
 	return 0;
 }
