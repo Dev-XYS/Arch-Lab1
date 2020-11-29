@@ -1,0 +1,109 @@
+#include "cache.h"
+
+#define PRI(set, way) (block[(set)][(way)].lru)
+#define VLD(set, way) (block[(set)][(way)].valid)
+#define INV(set, way) (!VLD(set, way))
+
+#define LOW 0
+#define HIGH 0
+
+#define QUEUE_SIZE (LLC_WAY)
+
+uint64_t eafq[LLC_SET][QUEUE_SIZE];
+uint32_t priority[LLC_SET][LLC_WAY];
+int head[LLC_SET], tail[LLC_SET];
+
+inline void push(int idx, uint64_t addr) {
+	if ((head[idx] - tail[idx] + QUEUE_SIZE) % QUEUE_SIZE == 1) {
+		// The queue is about to be full. Empty it.
+		head[idx] = 0;
+		eafq[idx][0] = addr;
+		tail[idx] = 1;
+		return;
+	}
+
+	// append to the end of the queue
+	eafq[idx][tail[idx]++] = addr;
+}
+
+inline bool present(int idx, uint64_t addr) {
+	for (int i = head[idx]; i != tail[idx]; i = (i + 1) % QUEUE_SIZE) {
+		if (eafq[idx][i] == addr) {
+			return true;
+		}
+	}
+	return false;
+}
+
+inline int size(int idx) {
+	return (tail[idx] - head[idx] + QUEUE_SIZE) % QUEUE_SIZE;
+}
+
+// initialize replacement state
+void CACHE::llc_initialize_replacement()
+{
+
+}
+
+// find replacement victim
+uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
+{
+	// fill invalid blocks first
+	for (uint32_t w = 0; w < NUM_WAY; w++) {
+		if (INV(set, w)) {
+			return w;
+		}
+	}
+
+	uint32_t way = 0;
+
+	// evict the least recent used block
+	for (uint32_t w = 0; w < NUM_WAY; w++) {
+		if (block[set][w].lru > block[set][way].lru) {
+			way = w;
+		}
+	}
+
+	return way;
+}
+
+// called on every cache hit and cache fill
+void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t way, uint64_t full_addr, uint64_t ip, uint64_t victim_addr, uint32_t type, uint8_t hit)
+{
+	uint32_t lru;
+
+	if (hit) {
+		if (priority[set][way] == LOW) {
+			lru = NUM_WAY / 2;
+		}
+		else {
+			lru = 0;
+		}
+	}
+	else {
+		if (present(set, full_addr)) {
+			priority[set][way] = HIGH;
+			lru = 0;
+		}
+		else {
+			lru = NUM_WAY / 2;
+			priority[set][way] = LOW;
+		}
+
+		push(set, victim_addr);
+	}
+
+	for (uint32_t w = 0; w < NUM_WAY; w++) {
+		if (block[set][w].lru < block[set][way].lru) {
+			block[set][w].lru++;
+		}
+	}
+	block[set][way].lru = lru;
+}
+
+void CACHE::llc_replacement_final_stats()
+{
+	for (int i = 0; i < LLC_WAY; i++) {
+		printf("queue size #%d = %d\n", i, size(i));
+	}
+}
