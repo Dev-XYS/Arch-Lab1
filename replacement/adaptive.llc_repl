@@ -7,6 +7,7 @@
 bool hit_history[HISTORY_SIZE];
 int hpointer, hitcount = HISTORY_SIZE / 2;
 int expectation = INIT_EXP;
+int head[LLC_SET];
 
 // initialize replacement state
 void CACHE::llc_initialize_replacement()
@@ -32,12 +33,8 @@ uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, c
 		// decrease expectation
 		expectation = (hitcount + expectation) / 2;
 
-		// find lru block
-		for (way = 1; way < NUM_WAY; way++) {
-			if (block[set][way].lru == NUM_WAY - 2) {
-				return way;
-			}
-		}
+		// evict in a FIFO manner
+		return head[set];
 	}
 	else {
 		expectation += EXP_STEP;
@@ -54,13 +51,8 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
 	hitcount += hit;
 	hpointer = (hpointer + 1) % HISTORY_SIZE;
 
-	// update lru
-	for (int w = 1; w < NUM_WAY; w++) {
-		if (block[set][w].valid && block[set][w].lru < block[set][way].lru) {
-			block[set][w].lru++;
-		}
-	}
-	block[set][way].lru = 0;
+	// update queue head
+	head[set] = (head[set] + 1) % NUM_WAY;
 }
 
 void CACHE::llc_replacement_final_stats()
